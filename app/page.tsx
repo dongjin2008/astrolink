@@ -6,15 +6,18 @@ import { useBirthSignStore, useUserIdStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 import  { useRouter } from "next/navigation";
 import { findOrCreateRoom, signIn } from "./actions";
+import { set } from "react-hook-form";
 
 export default function Home() {
   const { setSign } = useBirthSignStore();
   const { setUserId } = useUserIdStore();
   const [input_data, setInput_Data] = useState(Date);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   async function onSubmit1(data: string) {
     try {
+      setLoading(true);
       const birth_date = new Date(data);
       const birth_sign = starSign(birth_date);
       console.log("Birth sign:", birth_sign);
@@ -30,6 +33,8 @@ export default function Home() {
       router.push(`/chat/${selected_room}`);
     } catch (error) {
       console.error("Error in onSubmit:", error);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -45,7 +50,7 @@ export default function Home() {
       <div className="w-full flex justify-center">
         <div className="flex flex-col justify-center w-96">
           <Input className="w-full" type="date" onKeyDown={handleKeypress} onChange={(e) => setInput_Data(e.target.value)}/>
-          <Button onClick={() => onSubmit1(input_data)} className="w-64 mt-4 mx-auto">Submit</Button>
+          <Button onClick={() => onSubmit1(input_data)} disabled={loading} className="w-64 mt-4 mx-auto">{loading ? 'Loading...' : 'Submit'}</Button>
         </div>
       </div>
     </div>
