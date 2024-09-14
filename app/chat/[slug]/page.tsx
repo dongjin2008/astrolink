@@ -3,7 +3,7 @@ import { useUserIdStore, useBirthSignStore } from "@/lib/store";
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useEffect, useRef, useState } from "react";
-import { getMessages, sendMessage, checkRoomStatus } from "@/app/actions";
+import { getMessages, sendMessage, checkRoomStatus, breakRoom } from "@/app/actions";
 import { createClient } from "@/app/utils/supabase/client";
 
 interface ChatParmas {
@@ -43,41 +43,59 @@ export default function Chat({params}: {params: ChatParmas}) {
   }
 
   useEffect(() => {
+    const handleBeforeUnload = (e: Event) => {
+      e.preventDefault();
+      breakRoom(slug)
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  })
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
   useEffect (() => {
-    const channel = supabase.channel("realtime message").on('postgres_changes', {
+    const channel1 = supabase.channel("realtime message").on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
       table: 'messages'
     }, (payload) => {
       const newMessage = payload.new as Message
+      console.log("hello")
       if (newMessage.room === slug) {
+        console.log(newMessage)
         setMessages((prevMessages) => [...prevMessages, newMessage])
       }
     }).subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      console.log("bye")
+      supabase.removeChannel(channel1)
     }
   }, [supabase, messages, setMessages, slug])
 
   useEffect(() => {
-    const channel = supabase.channel("user joined").on('postgres_changes', {
+    const channel2 = supabase.channel("user joined").on('postgres_changes', {
       event: 'UPDATE',
       schema: 'public',
-      table: 'rooms'
     }, (payload) => {
       const userJoined = payload.new as Room
+      console.log("hello")
+      console.log(userJoined)
       if (userJoined.users.length === 2 && userJoined.users.includes(userId)) {
         setIsUserJoined(true)
       }
     }).subscribe()
     return () => {
-      supabase.removeChannel(channel)
+      console.log("bye")
+      supabase.removeChannel(channel2)
     }
-  }, [supabase, userId, setIsUserJoined, isUserJoined])
+  }, [supabase, userId, setIsUserJoined])
 
   useEffect(() => {
     checkRoomStatus(slug).then((status) => {
@@ -89,9 +107,6 @@ export default function Chat({params}: {params: ChatParmas}) {
 
   return (
     <div>
-      {!isUserJoined ? (
-        <h1 className="text-6xl text-center mb-24">Chat with other {sign} users</h1>
-      ) : (
       <div className="flex flex-col justify-between h-screen">
         <div className="flex flex-col p-4 space-y-4 overflow-y-auto">
           {messages.map((msg) => (
@@ -117,7 +132,6 @@ export default function Chat({params}: {params: ChatParmas}) {
           <Button onClick={handleSubmit}>Send</Button>
         </div>
       </div>
-      )}
     </div>
 
   );

@@ -30,10 +30,8 @@ export async function findOrCreateRoom(userId: string, zodiac: string) {
   if (data.length > 0) {
     const availableRooms = data.filter((d) => d["users"].length === 1)
     if (availableRooms.length > 0) {
-      const rand_number = Math.floor(Math.random() * availableRooms.length);
-      const selectedRoom = availableRooms[rand_number]
+      const selectedRoom = availableRooms[0]
       const new_users = [...selectedRoom["users"], userId]
-      console.log("Your room name is: ", data[rand_number]["room_name"])
       const { error: updateError } = await supabase.from("rooms").update({ users: new_users }).eq("room_name", selectedRoom["room_name"])
       if (updateError) {
         return updateError
@@ -49,7 +47,7 @@ export async function findOrCreateRoom(userId: string, zodiac: string) {
   console.log(upsertData)
   if (upsertError) {
     console.log(upsertError)
-    return "error occured"
+    return upsertError
   }
   return userId+"_"+zodiac;
 }
@@ -85,4 +83,24 @@ export async function checkRoomStatus(roomId: string) {
     }
   }
   return false
+}
+
+export async function breakRoom(roomId: string) {
+  const supabase = createClient()
+  const { data, error } = await supabase.from("rooms").select("*").eq('room_name', roomId)
+  const room = data![0]
+  const users = room["users"]
+
+  const { error: deleteRoomError } = await supabase.from("rooms").delete().eq('room_name', roomId)
+  const { error: deleteMessageError } = await supabase.from("messages").delete().eq('room', roomId)
+  const { error: deleteUserError } = await supabase.from("users").delete().in('id', users)
+
+  if (deleteRoomError || deleteMessageError || deleteUserError) {
+    return deleteRoomError || deleteMessageError || deleteUserError
+  }
+
+  if (error) {
+    return error
+  }
+  return
 }
