@@ -91,16 +91,18 @@ export async function breakRoom(roomId: string) {
   const room = data![0]
   const users = room["users"]
 
-  const { error: deleteRoomError } = await supabase.from("rooms").delete().eq('room_name', roomId)
+
+  const { data: deleteRoomUserData, error: deleteRoomUserError } = await supabase.from("rooms").delete().eq('room_name', roomId).select()
   const { error: deleteMessageError } = await supabase.from("messages").delete().eq('room', roomId)
   const { error: deleteUserError } = await supabase.from("users").delete().in('id', users)
 
-  if (deleteRoomError || deleteMessageError || deleteUserError) {
-    return deleteRoomError || deleteMessageError || deleteUserError
+  if (deleteRoomUserError || deleteMessageError || deleteUserError) {
+    return deleteRoomUserError || deleteMessageError || deleteUserError
   }
 
   if (error) {
     return error
   }
-  return
+
+  return deleteRoomUserData
 }

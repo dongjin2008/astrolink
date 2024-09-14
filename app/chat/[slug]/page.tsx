@@ -34,6 +34,8 @@ export default function Chat({params}: {params: ChatParmas}) {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isUserJoined, setIsUserJoined] = useState(false);
+  const [deletedRoom, setDeletedRoom] = useState<Number>();
+  const [isUserLaftPage, setIsUserLaftPage] = useState(false);
   const supabase = createClient()
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -45,7 +47,10 @@ export default function Chat({params}: {params: ChatParmas}) {
   useEffect(() => {
     const handleBeforeUnload = (e: Event) => {
       e.preventDefault();
-      breakRoom(slug)
+      const roomId = breakRoom(slug)
+      if (typeof(roomId) === 'number') {
+        setDeletedRoom(roomId)
+      }
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -60,7 +65,7 @@ export default function Chat({params}: {params: ChatParmas}) {
   }, [messages])
 
   useEffect (() => {
-    const channel1 = supabase.channel("realtime message").on('postgres_changes', {
+    const channel = supabase.channel("realtime message").on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
       table: 'messages'
@@ -74,26 +79,46 @@ export default function Chat({params}: {params: ChatParmas}) {
     }).subscribe()
 
     return () => {
-      console.log("bye")
-      supabase.removeChannel(channel1)
+      supabase.removeChannel(channel)
     }
   }, [supabase, messages, setMessages, slug])
 
   useEffect(() => {
-    const channel2 = supabase.channel("user joined").on('postgres_changes', {
+    const channel = supabase.channel("room deleted").on('postgres_changes', {
+      event: 'DELETE',
+      schema: 'public',
+      table: 'rooms'
+    }, (payload) => {
+      const roomDeleted = payload
+      console.log(roomDeleted)
+      console.log(roomDeleted.old.id)
+      console.log(deletedRoom)
+      if (roomDeleted.old.id === deletedRoom) {
+        setIsUserLaftPage(true)
+      }
+    }).subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, slug, deletedRoom])
+
+  useEffect(() => {
+    const channel = supabase.channel("user joined").on('postgres_changes', {
       event: 'UPDATE',
       schema: 'public',
+      table: 'rooms'
     }, (payload) => {
       const userJoined = payload.new as Room
-      console.log("hello")
-      console.log(userJoined)
       if (userJoined.users.length === 2 && userJoined.users.includes(userId)) {
         setIsUserJoined(true)
+        setDeletedRoom(userJoined.id)
+      } else {
+        setIsUserJoined(false)
       }
     }).subscribe()
     return () => {
-      console.log("bye")
-      supabase.removeChannel(channel2)
+      supabase.removeChannel(channel)
     }
   }, [supabase, userId, setIsUserJoined])
 
@@ -105,34 +130,45 @@ export default function Chat({params}: {params: ChatParmas}) {
     })
   }, [slug, setIsUserJoined])
 
+  function handleKeydown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      handleSubmit()
+    }
+  }
+
   return (
     <div>
-      <div className="flex flex-col justify-between h-screen">
-        <div className="flex flex-col p-4 space-y-4 overflow-y-auto">
-          {messages.map((msg) => (
-            <div
-            key={String(msg.id)}
-            className={`flex ${
-              msg.user === userId ? "justify-end" : "justify-start"
-            }`}>
+      {isUserLaftPage ? <h1 className="text-6xl text-center mb-24">The other user has left the chat <br/> <Button onClick={() => {window.location.href = "/"}}>Go Home</Button></h1> : 
+      <div>
+        {!isUserJoined ? <h1 className="text-6xl text-center mb-24">Waiting for the other user to join...</h1> :
+        <div className="flex flex-col justify-between h-screen">
+          <div className="flex flex-col p-4 space-y-4 overflow-y-auto">
+            {messages.map((msg) => (
               <div
-                className={`max-w-xs p-3 rounded-lg bg-secondary ${
-                  msg.user === userId
-                    ? "text-right"
-                    : "text-left"
-                }`}>
-                  <p>{msg.message}</p>
+              key={String(msg.id)}
+              className={`flex ${
+                msg.user === userId ? "justify-end" : "justify-start"
+              }`}>
+                <div
+                  className={`max-w-xs p-3 rounded-lg bg-secondary ${
+                    msg.user === userId
+                      ? "text-right"
+                      : "text-left"
+                  }`}>
+                    <p>{msg.message}</p>
+                </div>
               </div>
-            </div>
-          ))}
-          <div ref={chatEndRef}/>
+            ))}
+            <div ref={chatEndRef}/>
+          </div>
+          <div className="flex flex-row w-full sticky bottom-0">
+            <Input className="ml-3" type="text" placeholder="Enter the message..." value={message} onKeyDown={handleKeydown} onChange={(e) => setMessage(e.target.value)} />
+            <Button onClick={handleSubmit}>Send</Button>
+          </div>
         </div>
-        <div className="flex flex-row w-full sticky bottom-0">
-          <Input className="ml-3" type="text" placeholder="Enter the message..." value={message} onChange={(e) => setMessage(e.target.value)} />
-          <Button onClick={handleSubmit}>Send</Button>
-        </div>
+        }
       </div>
+      }
     </div>
-
   );
 }

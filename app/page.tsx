@@ -33,12 +33,18 @@ export default function Home() {
     }
   }
 
+  function handleKeypress(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      onSubmit1(input_data);
+    }
+  }
+
   return (
     <div className="my-52">
       <h1 className="text-6xl text-center mb-24">Connect with other based on <br/> Your Star Sign</h1>
       <div className="w-full flex justify-center">
         <div className="flex flex-col justify-center w-96">
-          <Input className="w-full" type="date" onChange={(e) => setInput_Data(e.target.value)}/>
+          <Input className="w-full" type="date" onKeyDown={handleKeypress} onChange={(e) => setInput_Data(e.target.value)}/>
           <Button onClick={() => onSubmit1(input_data)} className="w-64 mt-4 mx-auto">Submit</Button>
         </div>
       </div>
